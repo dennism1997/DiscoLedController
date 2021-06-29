@@ -11,10 +11,10 @@ class LedModeController {
 public:
     explicit LedModeController(size_t amountLeds) : amountLeds(amountLeds) {}
 
-    virtual void init(CRGB *leds, uint8_t intensity, uint8_t h, uint8_t bpm, uint8_t colorMode) = 0;
+    virtual void init(CRGB *leds) = 0;
 
     virtual void
-    update(CRGB *leds, uint8_t intensity, uint8_t modeOption, uint8_t h, uint8_t bpm, uint8_t colorMode) = 0;
+    updateLeds(CRGB *leds, uint8_t beatCounter, bool beatUpdated, uint8_t beatBrightness) = 0;
 
 protected:
     size_t amountLeds;

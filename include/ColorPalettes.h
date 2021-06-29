@@ -9,7 +9,7 @@
 #ifndef DISCOLEDCONTROLLER_COLORPALETTES_H
 #define DISCOLEDCONTROLLER_COLORPALETTES_H
 
-#include "FastLed.h"
+#include "FastLED.h"
 
 DEFINE_GRADIENT_PALETTE(Sunset_Real_gp) {
         0, 120, 0, 0,

@@ -5,6 +5,7 @@
 #ifndef DISCOLEDCONTROLLER_CYLONMODE_H
 #define DISCOLEDCONTROLLER_CYLONMODE_H
 
+#include "globals.h"
 #include <FastLED.h>
 #include "LedModeController.h"
 
@@ -16,31 +17,34 @@ public:
     explicit CylonMode(size_t amountLeds) : LedModeController(amountLeds) {}
 
 
-    void init(CRGB *leds, uint8_t intensity, uint8_t h, uint8_t bpm, uint8_t colorMode) override {
-        fill_solid(leds, static_cast<int>(amountLeds), CHSV(h, 255, 0));
+    void init(CRGB *leds) override {
+        fill_solid(leds, static_cast<int>(amountLeds), CHSV(usedHue, 255, 0));
     }
 
-    void update(CRGB *leds, uint8_t intensity, uint8_t modeOption, uint8_t h, uint8_t bpm, uint8_t colorMode) override {
-        size_t nLeds = amountLeds;
-        for (size_t i = 0; i < nLeds; i++) {
-            if (i == position || i == position + eyeSize - 1) {
-                leds[i].setHSV(h, 255, 128);
-            } else if (i > position && i < position + eyeSize - 1) {
-                leds[i].setHSV(h, 255, 255);
-            } else {
-                leds[i].setHSV(h, 255, 0);
-            }
+    void
+    updateLeds(CRGB *leds, uint8_t beatCounter, bool beatUpdated, uint8_t beatBrightness) override {
+        this->eyeSize = getModeOption() + 4;
+        if (beatUpdated){
+            for (size_t i = 0; i < amountLeds; i++) {
+                if (i == position || i == position + eyeSize - 1) {
+                    leds[i].setHSV(usedHue, 255, 128);
+                } else if (i > position && i < position + eyeSize - 1) {
+                    leds[i].setHSV(usedHue, 255, 255);
+                } else {
+                    leds[i].setHSV(usedHue, 255, 0);
+                }
 
-        }
-        memmove(leds + position * 3, (leds + direction * 3) + position * 3, eyeSize * 3);
-        if (direction > 0) {
-            leds[position].setHSV(h, 255, 0);
-        } else {
-            leds[position].setHSV(h, 255, 255);
-        }
-        position += direction * (modeOption + 1);
-        if (position <= 0 || position >= nLeds - eyeSize) {
-            direction *= -1;
+            }
+//            memmove(leds + position * 3, (leds + direction * 3) + position * 3, eyeSize * 3);
+            if (direction > 0) {
+                leds[position].setHSV(usedHue, 255, 0);
+            } else {
+                leds[position].setHSV(usedHue, 255, 255);
+            }
+            position += direction * (getModeOption() + 1);
+            if (position <= 0 || position >= amountLeds - eyeSize) {
+                direction *= -1;
+            }
         }
     }
 

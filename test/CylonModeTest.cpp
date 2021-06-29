@@ -25,7 +25,7 @@ void testUpdateOnce(void) {
     TEST_ASSERT_EQUAL(1, cylonMode.getPosition());
 }
 
-void setup() {
+__attribute__((unused)) void setup() {
     // NOTE!!! Wait for >2 secs
     // if board doesn't support software reset via Serial.DTR/RTS
     delay(2000);
@@ -39,7 +39,7 @@ void setup() {
     UNITY_END();
 }
 
-void loop() {
+__attribute__((unused)) void loop() {
     digitalWrite(LED_BUILTIN, HIGH);
     delay(500);
     digitalWrite(LED_BUILTIN, LOW);

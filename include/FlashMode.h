@@ -1,10 +1,6 @@
-//
-// Created by dennis on 18-05-21.
-//
-
 #ifndef DISCOLEDCONTROLLER_FLASHMODE_H
 #define DISCOLEDCONTROLLER_FLASHMODE_H
-
+#include "globals.h"
 #include <FastLED.h>
 #include "LedModeController.h"
 
@@ -12,21 +8,29 @@ class FlashMode : public LedModeController {
 public:
     explicit FlashMode(size_t amountLeds) : LedModeController(amountLeds) {}
 
-    void init(CRGB *leds, uint8_t intensity, uint8_t h, uint8_t bpm, uint8_t colorMode) override {
+    void init(CRGB *leds) override {
     }
 
-    void update(CRGB *leds, uint8_t intensity, uint8_t modeOption, uint8_t h, uint8_t bpm, uint8_t colorMode) override {
+    void
+    updateLeds(CRGB *leds, uint8_t beatCounter, bool beatUpdated, uint8_t beatBrightness) override {
         int numToFill = static_cast<int>(amountLeds);
-        if (counter == 0) {
-            fill_solid(leds, numToFill, CHSV(h, 255, 255));
+        int16_t mod = getModeOption();
+        if (mod <= 4) {
+            if (counter == 0) {
+                fill_solid(leds, numToFill, CHSV(usedHue, 255, 255));
+            } else {
+                fill_solid(leds, numToFill, CHSV(usedHue, 255, 0));
+            }
+            if (mod < 2) {
+                mod = 4;
+            }
+            if (beatUpdated) {
+                counter = addmod8(counter, 1, mod);
+            }
         } else {
-            fill_solid(leds, numToFill, CHSV(h, 255, 0));
+            fill_solid(leds, numToFill, CHSV(usedHue, 255, getBrightness()));
         }
-        int16_t mod = modeOption;
-        if (mod < 2) {
-            mod = 4;
-        }
-        counter = addmod8(counter, 1, mod);
+
     }
 
 private:

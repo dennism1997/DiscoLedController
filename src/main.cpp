@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #define DEBUG 1
+
 #ifdef DEBUG
 #define DEBUG_PRINT(x)     Serial.print (x)
 #define DEBUG_PRINTDEC(x)     Serial.print (x, DEC)
@@ -14,6 +15,7 @@
 #define SPI_DATA D6
 #define SPI_CLOCK D5
 
+#include "globals.h"
 #include <Ticker.h>
 #include <ESP8266WiFi.h>
 #include <ArduinoOTA.h>
@@ -28,9 +30,9 @@
 #include "CylonMode.h"
 #include "SparkleMode.h"
 #include "FlashMode.h"
-#include "BeatMode.h"
+#include "WaveMode.h"
 
-#define NUM_LEDS    20
+#define NUM_LEDS 36
 CRGB leds[NUM_LEDS];
 
 RainMode rainMode(NUM_LEDS);
@@ -38,7 +40,9 @@ StrobeMode strobeMode(NUM_LEDS);
 CylonMode cylonMode(NUM_LEDS);
 SparkleMode sparkleMode(NUM_LEDS);
 FlashMode flashMode(NUM_LEDS);
-BeatMode beatMode(NUM_LEDS);
+WaveMode waveMode(NUM_LEDS);
+
+LedModeController *currentLedMode;
 
 
 #include "ColorPalettes.h"
@@ -47,13 +51,6 @@ CRGBPalette16 currentPalette = Sunset_Real_gp;
 TBlendType currentBlending = LINEARBLEND; // NOBLEND or LINEARBLEND
 
 
-enum LedMode {
-    Rain, Strobe, Cylon, Sparkle, Flash, Beat, Wash, Wave, AMOUNT_LEDMODE
-};
-
-enum ColorMode {
-    Single, Complement, RainbowFade, RainbowSplash, Duo, Palette, Close, AMOUNT_COLORMODE
-};
 
 //<editor-fold desc="Declarations">
 // WS2815 - 220ns, 360ns, 220ns https://github.com/FastLED/FastLED/issues/940
@@ -66,8 +63,6 @@ class WS2815 : public WS2815Controller<DATA_PIN, RGB_ORDER> {
 };
 
 void tickBeatClock();
-
-void tickFastClock();
 
 void serialPrintLeds();
 
@@ -85,6 +80,7 @@ void sendLedsToSocket();
 
 void updateLeds();
 
+
 IPAddress ip(192, 168, 178, 200);
 IPAddress gateway(192, 168, 178, 1);
 IPAddress subnet(255, 255, 255, 0);
@@ -92,53 +88,16 @@ WebSocketsServer webSocket = WebSocketsServer(80);
 //</editor-fold>
 
 
+uint8_t dataValues[AMT_DATA_VALUES] = {LedMode::Strobe, 0, 120, 20, 0, 255, 128, ColorMode::Single} ;
+uint8_t usedHue = getHue1();
 
-#define AMT_DATA_VALUES 8
-// mode, modeOption, bpm, brightness, intensity, colorH1, colorH2, colorMode
-uint8_t dataValues[AMT_DATA_VALUES] = {LedMode::Flash, 0, 120, 255, 0, 255, 255, ColorMode::Close};
-uint8_t usedHue = dataValues[5];
-
-//<editor-fold desc="Getters">
-uint8_t getLedMode() {
-    return dataValues[0];
-}
-
-uint8_t getModeOption() {
-    return dataValues[1];
-}
-
-uint8_t getBpm() {
-    return dataValues[2];
-}
-
-uint8_t getBrightness() {
-    return dataValues[3];
-}
-
-uint8_t getIntensity() {
-    return dataValues[4];
-}
-
-uint8_t getHue1() {
-    return dataValues[5];
-}
-
-uint8_t getHue2() {
-    return dataValues[6];
-}
-
-uint8_t getColorMode() {
-    return dataValues[7];
-}
-
-//</editor-fold>
 
 
 //timing
-byte ticks = 0;
-#define TICKS_PER_BEAT 4
+uint8_t beatCounter = 0;
+boolean updatedThisBeat = false;
+#define TICKS_PER_BEAT 16
 Ticker beatTicker(tickBeatClock, 1000, 0, MICROS);
-Ticker fastTicker(tickFastClock, 10, 0, MILLIS);
 
 uint8_t colorIndex = 0;
 
@@ -146,6 +105,10 @@ void updateColor() {
 
     colorIndex++;
     switch (static_cast<ColorMode>(getColorMode())) {
+        case Single: {
+            usedHue = getHue1();
+            break;
+        }
         case Complement: {
             int16_t h = getHue1();
             if (colorIndex % 2 == 0) {
@@ -194,27 +157,15 @@ void updateColor() {
     }
 }
 
-boolean isLedModeBeatMatched(uint8_t mode) {
-    return mode < LedMode::Wash;
-}
 
 void tickBeatClock() {
-    ticks = addmod8(ticks, 1, TICKS_PER_BEAT);
-    int16_t intensity = getIntensity();
-    if ((intensity == 0 && ticks == 0) ||
-        (intensity == 1 && ticks % 2 == 0) ||
-        intensity >= 2) {
-        updateColor();
-        updateLeds();
-    }
+    beatCounter = addmod8(beatCounter, 1, TICKS_PER_BEAT);
+    updatedThisBeat = false;
 }
 
-void tickFastClock() {
-    updateLeds();
-}
-
-void setup() {
+__attribute__((unused)) void setup() {
     Serial.begin(115200);
+
 
     setupLeds();
     pinMode(LED_BUILTIN, OUTPUT);
@@ -222,42 +173,76 @@ void setup() {
     setupServer();
 //    setupOTA();
 
-    changeMode(LedMode::Rain);
+    changeMode(static_cast<LedMode>(getLedMode()));
     setBpm(getBpm());
     beatTicker.start();
 }
 
 
+__attribute__((unused)) void loop() {
+//    ArduinoOTA.handle();
+    webSocket.loop();
+    beatTicker.update();
+    updateLeds();
+}
+
+void updateLeds() {
+    int16_t modeOption = getModeOption();
+    int16_t intensity = getIntensity();
+    uint8_t colorMode = getColorMode();
+    uint8_t bpm = getBpm();
+    uint8_t beatBrightness = beatsin8(bpm, 0, 255, beatTicker.elapsed() * 1000);
+    bool beatUpdated = false;
+    if (!updatedThisBeat) {
+        updatedThisBeat = true;
+        if ((intensity == 0 && beatCounter % 4 == 0) ||
+            (intensity == 1 && beatCounter % 2 == 0) ||
+            intensity >= 2) {
+            updateColor();
+            beatUpdated = true;
+        }
+
+        if (beatCounter % 4 == 0) {
+            sendLedsToSocket();
+            serialPrintLeds();
+        }
+    }
+    currentLedMode->updateLeds(leds, beatCounter, beatUpdated, beatBrightness);
+
+    FastLED.show();
+}
+
 void changeMode(LedMode newMode) {
     int16_t intensity = getIntensity();
-    auto oldMode = static_cast<LedMode>(dataValues[0]);
+//    auto oldMode = static_cast<LedMode>(dataValues[0]);
     dataValues[0] = newMode;
     uint8_t h = usedHue;
     uint8_t bpm = getBpm();
     uint8_t colorMode = getColorMode();
+    DEBUG_PRINTLN(newMode);
     switch (newMode) {
         case LedMode::Rain: {
-            rainMode.init(leds, intensity, h, bpm, colorMode);
+            currentLedMode = &rainMode;
             break;
         }
         case LedMode::Strobe: {
-            strobeMode.init(leds, intensity, h, bpm, colorMode);
+            currentLedMode = &strobeMode;
             break;
         }
         case LedMode::Cylon: {
-            cylonMode.init(leds, intensity, h, bpm, colorMode);
+            currentLedMode = &cylonMode;
             break;
         }
         case LedMode::Sparkle: {
-            sparkleMode.init(leds, intensity, h, bpm, colorMode);
+            currentLedMode = &sparkleMode;
             break;
         }
         case LedMode::Flash: {
-            flashMode.init(leds, intensity, h, bpm, colorMode);
+            currentLedMode = &flashMode;
             break;
         }
-        case LedMode::Beat: {
-            beatMode.init(leds, intensity, h, bpm, colorMode);
+        case LedMode::Wave: {
+            currentLedMode = &waveMode;
             break;
         }
         default:
@@ -265,28 +250,16 @@ void changeMode(LedMode newMode) {
             DEBUG_PRINTLN(newMode);
             break;
     }
-    if (isLedModeBeatMatched(newMode) && !isLedModeBeatMatched(oldMode)) {
-        fastTicker.stop();
-        beatTicker.start();
-    } else if (!isLedModeBeatMatched(newMode) && isLedModeBeatMatched(oldMode)){
-        beatTicker.stop();
-        fastTicker.start();
-    }
+    currentLedMode->init(leds);
+
 }
 
-void loop() {
-//    ArduinoOTA.handle();
-    webSocket.loop();
-    beatTicker.update();
-    fastTicker.update();
-}
-
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, __attribute__((unused)) size_t length) {
     switch (type) {
         case WStype_TEXT: {
             Serial.printf("[%u] get Text: %s\n", num, payload);
             size_t index = 0;
-            int16_t newDataValues[AMT_DATA_VALUES];
+            uint8_t newDataValues[AMT_DATA_VALUES];
 
             char *ptr = strtok((char *) payload, ",");
 
@@ -295,13 +268,13 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
                 ptr = strtok(nullptr, ",");
             }
 
-            int16_t newMode = newDataValues[0];
+            uint8_t newMode = newDataValues[0];
             if (newMode != getLedMode() && newMode >= 0 && newMode < LedMode::AMOUNT_LEDMODE) {
                 changeMode(static_cast<LedMode>(newMode));
             }
             dataValues[1] = newDataValues[1];
 
-            int16_t newBpm = newDataValues[2];
+            uint8_t newBpm = newDataValues[2];
             if (newBpm != getBpm() && newBpm >= 60 && newBpm <= 180) {
                 setBpm(newBpm);
             }
@@ -341,31 +314,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 
 void setupLeds() {
     FastLED.addLeds<WS2815, D4, RGB>(leds, NUM_LEDS);
-    FastLED.setBrightness(dataValues[3]);
-}
-
-void setupOTA() {
-    ArduinoOTA.setHostname("discoled");
-    ArduinoOTA.setPassword("123");
-    ArduinoOTA.onStart([]() {
-        DEBUG_PRINTLN("Start OTA");
-    });
-    ArduinoOTA.onEnd([]() {
-        DEBUG_PRINTLN("\r\nEnd OTA");
-    });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-    });
-    ArduinoOTA.onError([](ota_error_t error) {
-        Serial.printf("Error[%u]: ", error);
-        if (error == OTA_AUTH_ERROR) DEBUG_PRINTLN("Auth Failed");
-        else if (error == OTA_BEGIN_ERROR) DEBUG_PRINTLN("Begin Failed");
-        else if (error == OTA_CONNECT_ERROR) DEBUG_PRINTLN("Connect Failed");
-        else if (error == OTA_RECEIVE_ERROR) DEBUG_PRINTLN("Receive Failed");
-        else if (error == OTA_END_ERROR) DEBUG_PRINTLN("End Failed");
-    });
-    ArduinoOTA.begin();
-    DEBUG_PRINTLN("OTA ready\r\n");
+    FastLED.setBrightness(getBrightness());
 }
 
 void setupServer() {
@@ -425,45 +374,28 @@ void setBpm(int16_t newBpm) {
     beatTicker.interval(15000 / newBpm);
 }
 
-void updateLeds() {
-    int16_t modeOption = getModeOption();
-    int16_t intensity = getIntensity();
-    uint8_t h = usedHue;
-    uint8_t bpm = getBpm();
-    uint8_t colorMode = getColorMode();
-    auto mode = static_cast<LedMode>(dataValues[0]);
-    switch (mode) {
-        case LedMode::Rain: {
-            rainMode.update(leds, intensity, modeOption, h, bpm, colorMode);
-            break;
-        }
-        case LedMode::Strobe: {
-            strobeMode.update(leds, intensity, modeOption, h, bpm, colorMode);
-            break;
-        }
-        case LedMode::Sparkle: {
-            sparkleMode.update(leds, intensity, modeOption, h, bpm, colorMode);
-            break;
-        }
-        case LedMode::Cylon: {
-            cylonMode.update(leds, intensity, modeOption, h, bpm, colorMode);
-            break;
-        }
-        case LedMode::Flash: {
-            flashMode.update(leds, intensity, modeOption, h, bpm, colorMode);
-            break;
-        }
-        case LedMode::Beat: {
-            beatMode.update(leds, intensity, modeOption, h, bpm, colorMode);
-        }
-        default:
-            DEBUG_PRINT("unkown mode option: ");
-            DEBUG_PRINTLN(mode);
-            break;
-    }
-    serialPrintLeds();
-    sendLedsToSocket();
-    FastLED.show();
+__attribute__((unused)) void setupOTA() {
+    ArduinoOTA.setHostname("discoled");
+    ArduinoOTA.setPassword("123");
+    ArduinoOTA.onStart([]() {
+        DEBUG_PRINTLN("Start OTA");
+    });
+    ArduinoOTA.onEnd([]() {
+        DEBUG_PRINTLN("\r\nEnd OTA");
+    });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+        Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+        Serial.printf("Error[%u]: ", error);
+        if (error == OTA_AUTH_ERROR) DEBUG_PRINTLN("Auth Failed");
+        else if (error == OTA_BEGIN_ERROR) DEBUG_PRINTLN("Begin Failed");
+        else if (error == OTA_CONNECT_ERROR) DEBUG_PRINTLN("Connect Failed");
+        else if (error == OTA_RECEIVE_ERROR) DEBUG_PRINTLN("Receive Failed");
+        else if (error == OTA_END_ERROR) DEBUG_PRINTLN("End Failed");
+    });
+    ArduinoOTA.begin();
+    DEBUG_PRINTLN("OTA ready\r\n");
 }
 
 void serialPrintResult() {
@@ -471,7 +403,7 @@ void serialPrintResult() {
         return;
     }
     DEBUG_PRINT("mode: ");
-    DEBUG_PRINTLN(getModeOption());
+    DEBUG_PRINTLN(getLedMode());
     DEBUG_PRINT("modeOption: ");
     DEBUG_PRINTLN(getModeOption());
     DEBUG_PRINT("bpm: ");
