@@ -187,9 +187,7 @@ __attribute__((unused)) void loop() {
 }
 
 void updateLeds() {
-    int16_t modeOption = getModeOption();
     int16_t intensity = getIntensity();
-    uint8_t colorMode = getColorMode();
     uint8_t bpm = getBpm();
     uint8_t beatBrightness = beatsin8(bpm, 0, 255, beatTicker.elapsed() * 1000);
     bool beatUpdated = false;
@@ -213,12 +211,8 @@ void updateLeds() {
 }
 
 void changeMode(LedMode newMode) {
-    int16_t intensity = getIntensity();
 //    auto oldMode = static_cast<LedMode>(dataValues[0]);
     dataValues[0] = newMode;
-    uint8_t h = usedHue;
-    uint8_t bpm = getBpm();
-    uint8_t colorMode = getColorMode();
     DEBUG_PRINTLN(newMode);
     switch (newMode) {
         case LedMode::Rain: {

@@ -13,7 +13,7 @@ class WaveMode : public LedModeController {
 public:
     explicit WaveMode(size_t amountLeds) : LedModeController(amountLeds) {}
 
-    void init(CRGB *leds, uint8_t intensity, uint8_t h, uint8_t getBpm(), uint8_t colorMode) override {
+    void init(CRGB *leds) override {
     }
 
     void
