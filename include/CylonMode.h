@@ -23,7 +23,7 @@ public:
 
     void
     updateLeds(CRGB *leds, uint8_t beatCounter, bool beatUpdated, uint8_t beatBrightness) override {
-        this->eyeSize = getModeOption() + 4;
+        this->eyeSize = modeOption + 4;
         if (beatUpdated){
             for (size_t i = 0; i < amountLeds; i++) {
                 if (i == position || i == position + eyeSize - 1) {
@@ -41,7 +41,7 @@ public:
             } else {
                 leds[position].setHSV(usedHue, 255, 255);
             }
-            position += direction * (getModeOption() + 1);
+            position += direction * (modeOption + 1);
             if (position <= 0 || position >= amountLeds - eyeSize) {
                 direction *= -1;
             }

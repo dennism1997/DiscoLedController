@@ -20,7 +20,7 @@ public:
         if (beatUpdated) {
 
             size_t interval = amountLeds / steps;
-            uint8_t randomModifier = random(-10 * getIntensity(), 10 * getIntensity());
+            uint8_t randomModifier = random(-10 * intensity, 10 * intensity);
             for (size_t i = 0; i < amountLeds; i++) {
                 if (i >= interval * counter && i < interval * (counter + 1)) {
                     leds[i].setHSV(qadd8(usedHue, randomModifier), 255, 255);
@@ -31,7 +31,7 @@ public:
             }
 
 
-            if (getModeOption() == 0) {
+            if (modeOption == 0) {
                 if (counter < 2) {
                     counter += 2;
                 } else if (counter % 2 == 0) {
@@ -39,9 +39,9 @@ public:
                 } else {
                     counter += 1;
                 }
-            } else if (getModeOption() == 1) {
+            } else if (modeOption == 1) {
                 counter += random8(steps);
-            } else if (getModeOption() == 2) {
+            } else if (modeOption == 2) {
                 counter += 1;
             } else {
                 counter -= 1;

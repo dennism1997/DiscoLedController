@@ -17,7 +17,7 @@ public:
         if (beatUpdated) {
 
             uint8_t interval;
-            switch (getModeOption()) {
+            switch (modeOption) {
                 case 0:
                     interval = 4;
                     break;
@@ -34,13 +34,13 @@ public:
                     interval = 4;
             }
 
-            if (getModeOption() < 2) {// go forward
+            if (modeOption < 2) {// go forward
                 moveForward(leds);
 
-            } else if (getModeOption() <= 4) { //go the other way
+            } else if (modeOption <= 4) { //go the other way
                 moveBackwards(leds);
             } else {
-                if (random8(10) < getModeOption()) {
+                if (random8(10) < modeOption) {
                     moveForward(leds);
                 } else {
                     moveBackwards(leds);

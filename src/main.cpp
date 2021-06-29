@@ -88,8 +88,17 @@ WebSocketsServer webSocket = WebSocketsServer(80);
 //</editor-fold>
 
 
-uint8_t dataValues[AMT_DATA_VALUES] = {LedMode::Strobe, 0, 120, 20, 0, 255, 128, ColorMode::Single} ;
-uint8_t usedHue = getHue1();
+uint8_t dataValues[AMT_DATA_VALUES] = {LedMode::Strobe, 0, 120, 20, 0, 255, 128, ColorMode::Single, 0} ;
+LedMode ledMode = LedMode::Strobe;
+uint8_t modeOption = 0;
+uint8_t bpm = 120;
+uint8_t brightness = 20;
+uint8_t intensity = 0;
+uint8_t hue1 = 0;
+uint8_t hue2 = 128;
+ColorMode colorMode = ColorMode::Single;
+uint8_t paletteIndex;
+uint8_t usedHue = hue1;
 
 
 
@@ -104,13 +113,13 @@ uint8_t colorIndex = 0;
 void updateColor() {
 
     colorIndex++;
-    switch (static_cast<ColorMode>(getColorMode())) {
+    switch (static_cast<ColorMode>(colorMode)) {
         case Single: {
-            usedHue = getHue1();
+            usedHue = hue1;
             break;
         }
         case Complement: {
-            int16_t h = getHue1();
+            int16_t h = hue1;
             if (colorIndex % 2 == 0) {
                 h += 128;
             }
@@ -130,10 +139,10 @@ void updateColor() {
         }
         case Duo: {
             if (colorIndex % 4 == 0) {
-                if (usedHue == getHue1()) {
-                    usedHue = getHue2();
+                if (usedHue == hue1) {
+                    usedHue = hue2;
                 } else {
-                    usedHue = getHue1();
+                    usedHue = hue1;
                 }
             }
             break;
@@ -144,10 +153,10 @@ void updateColor() {
         }
         case Close: {
             if (colorIndex % 8 == 0) {
-                if (usedHue == getHue1()) {
+                if (usedHue == hue1) {
                     usedHue += 10;
                 } else {
-                    usedHue = getHue1();
+                    usedHue = hue1;
                 }
             }
             break;
@@ -173,8 +182,8 @@ __attribute__((unused)) void setup() {
     setupServer();
 //    setupOTA();
 
-    changeMode(static_cast<LedMode>(getLedMode()));
-    setBpm(getBpm());
+    changeMode(static_cast<LedMode>(ledMode));
+    setBpm(bpm);
     beatTicker.start();
 }
 
@@ -187,8 +196,6 @@ __attribute__((unused)) void loop() {
 }
 
 void updateLeds() {
-    int16_t intensity = getIntensity();
-    uint8_t bpm = getBpm();
     uint8_t beatBrightness = beatsin8(bpm, 0, 255, beatTicker.elapsed() * 1000);
     bool beatUpdated = false;
     if (!updatedThisBeat) {
@@ -263,13 +270,13 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, __attribute__(
             }
 
             uint8_t newMode = newDataValues[0];
-            if (newMode != getLedMode() && newMode >= 0 && newMode < LedMode::AMOUNT_LEDMODE) {
+            if (newMode != ledMode && newMode >= 0 && newMode < LedMode::AMOUNT_LEDMODE) {
                 changeMode(static_cast<LedMode>(newMode));
             }
             dataValues[1] = newDataValues[1];
 
             uint8_t newBpm = newDataValues[2];
-            if (newBpm != getBpm() && newBpm >= 60 && newBpm <= 180) {
+            if (newBpm != bpm && newBpm >= 60 && newBpm <= 180) {
                 setBpm(newBpm);
             }
 
@@ -286,6 +293,11 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, __attribute__(
             dataValues[6] = newDataValues[6];
             //colorMode
             dataValues[7] = newDataValues[7];
+
+            uint8_t newPaletteIndex = newDataValues[8];
+            if (newPaletteIndex != dataValues[8]) {
+
+            }
 
             serialPrintResult();
             break;
@@ -308,7 +320,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, __attribute__(
 
 void setupLeds() {
     FastLED.addLeds<WS2815, D4, RGB>(leds, NUM_LEDS);
-    FastLED.setBrightness(getBrightness());
+    FastLED.setBrightness(brightness);
 }
 
 void setupServer() {
@@ -397,21 +409,21 @@ void serialPrintResult() {
         return;
     }
     DEBUG_PRINT("mode: ");
-    DEBUG_PRINTLN(getLedMode());
+    DEBUG_PRINTLN(ledMode);
     DEBUG_PRINT("modeOption: ");
-    DEBUG_PRINTLN(getModeOption());
+    DEBUG_PRINTLN(modeOption);
     DEBUG_PRINT("bpm: ");
-    DEBUG_PRINTLN(getBpm());
+    DEBUG_PRINTLN(bpm);
     DEBUG_PRINT("brightness: ");
-    DEBUG_PRINTLN(getBrightness());
+    DEBUG_PRINTLN(brightness);
     DEBUG_PRINT("intensity: ");
-    DEBUG_PRINTLN(getIntensity());
+    DEBUG_PRINTLN(intensity);
 
     DEBUG_PRINT("h1: ");
-    DEBUG_PRINTLN(getHue1());
+    DEBUG_PRINTLN(hue1);
     DEBUG_PRINT("h2: ");
-    DEBUG_PRINTLN(getHue2());
+    DEBUG_PRINTLN(hue2);
     DEBUG_PRINT("colorMode:");
-    DEBUG_PRINTLN(getColorMode());
+    DEBUG_PRINTLN(colorMode);
 
 }

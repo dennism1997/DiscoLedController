@@ -18,31 +18,31 @@ public:
 
     void
     updateLeds(CRGB *leds, uint8_t beatCounter, bool beatUpdated, uint8_t beatBrightness) override {
-        uint8_t brightness = beatsin8(getBpm() / 4, 64);
-        switch (getModeOption()) {
+        uint8_t brightness = beatsin8(bpm / 4, 64);
+        switch (modeOption) {
             case 1:
-                brightness = beatsin8(getBpm() / 2, 64);
+                brightness = beatsin8(bpm / 2, 64);
                 break;
             case 2:
-                brightness = beatsin8(getBpm(), 64);
+                brightness = beatsin8(bpm, 64);
                 break;
             case 3:
-                brightness = beat8(getBpm() / 4);
+                brightness = beat8(bpm / 4);
                 break;
             case 4:
-                brightness = beat8(getBpm() / 2);
+                brightness = beat8(bpm / 2);
                 break;
             case 5:
-                brightness = beat8(getBpm());
+                brightness = beat8(bpm);
                 break;
             case 6:
-                brightness = 255 - beat8(getBpm() / 4);
+                brightness = 255 - beat8(bpm / 4);
                 break;
             case 7:
-                brightness = 255 - beat8(getBpm() / 2);
+                brightness = 255 - beat8(bpm / 2);
                 break;
             case 8:
-                brightness = 255 - beat8(getBpm());
+                brightness = 255 - beat8(bpm);
                 break;
             case 9:
                 brightness = static_cast<uint8_t>(round(acos(beatBrightness) / 1.5708));

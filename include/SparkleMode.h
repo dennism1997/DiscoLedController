@@ -23,14 +23,14 @@ public:
     updateLeds(CRGB *leds, uint8_t beatCounter, bool beatUpdated, uint8_t beatBrightness) override {
         if (beatUpdated) {
 
-            if (getModeOption() == 0) {
+            if (modeOption == 0) {
 
                 leds[oldSelectedPixel].setHSV(usedHue, 255, beatBrightness / 2);
                 leds[selectedPixel].setHSV(usedHue, 255, beatBrightness);
                 oldSelectedPixel = selectedPixel;
                 selectedPixel = random16(amountLeds);
 
-            } else if (getModeOption() == 1) {
+            } else if (modeOption == 1) {
                 if (coveredPixels.size() >= amountLeds) {
                     coveredPixels.clear();
                     fill_solid(leds, static_cast<int>(amountLeds), CHSV(usedHue, 255, 100));
