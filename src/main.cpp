@@ -390,7 +390,8 @@ void sendLedsToSocket() {
 void setBpm(uint8_t newBpm) {
     bpm = newBpm;
     beatTicker.interval(15000 / newBpm);
-    timebase = beatTicker.elapsed();
+//    timebase = beatTicker.elapsed();
+    timebase = millis();
     colorIndex = 0;
 }
 
