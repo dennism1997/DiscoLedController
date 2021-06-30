@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #define DEBUG 1
+#define DEBUG_WEBSOCKET 1
 
 #ifdef DEBUG
 #define DEBUG_PRINT(x)     Serial.print (x)
@@ -31,6 +32,7 @@
 #include "SparkleMode.h"
 #include "FlashMode.h"
 #include "WaveMode.h"
+#include "ColorPalettes.h"
 
 #define NUM_LEDS 36
 CRGB leds[NUM_LEDS];
@@ -45,12 +47,8 @@ WaveMode waveMode(NUM_LEDS);
 LedModeController *currentLedMode;
 
 
-#include "ColorPalettes.h"
-
 CRGBPalette16 currentPalette = Sunset_Real_gp;
 TBlendType currentBlending = LINEARBLEND; // NOBLEND or LINEARBLEND
-
-
 
 //<editor-fold desc="Declarations">
 // WS2815 - 220ns, 360ns, 220ns https://github.com/FastLED/FastLED/issues/940
@@ -64,22 +62,24 @@ class WS2815 : public WS2815Controller<DATA_PIN, RGB_ORDER> {
 
 void tickBeatClock();
 
+#ifdef DEBUG
 void serialPrintLeds();
 
 void serialPrintResult();
-
+#endif
 void setupLeds();
 
 void setupServer();
 
 void changeMode(LedMode newMode);
 
-void setBpm(int16_t bpm);
-
+void setBpm(uint8_t bpm);
+#ifdef DEBUG_WEBSOCKET
 void sendLedsToSocket();
-
+#endif
 void updateLeds();
 
+void changePalette(uint8_t newPaletteIndex);
 
 IPAddress ip(192, 168, 178, 200);
 IPAddress gateway(192, 168, 178, 1);
@@ -87,8 +87,8 @@ IPAddress subnet(255, 255, 255, 0);
 WebSocketsServer webSocket = WebSocketsServer(80);
 //</editor-fold>
 
+uint8_t oldDataValues[AMT_DATA_VALUES];
 
-uint8_t dataValues[AMT_DATA_VALUES] = {LedMode::Strobe, 0, 120, 20, 0, 255, 128, ColorMode::Single, 0} ;
 LedMode ledMode = LedMode::Strobe;
 uint8_t modeOption = 0;
 uint8_t bpm = 120;
@@ -97,9 +97,8 @@ uint8_t intensity = 0;
 uint8_t hue1 = 0;
 uint8_t hue2 = 128;
 ColorMode colorMode = ColorMode::Single;
-uint8_t paletteIndex;
+uint8_t paletteIndex = 0;
 uint8_t usedHue = hue1;
-
 
 
 //timing
@@ -107,11 +106,11 @@ uint8_t beatCounter = 0;
 boolean updatedThisBeat = false;
 #define TICKS_PER_BEAT 16
 Ticker beatTicker(tickBeatClock, 1000, 0, MICROS);
+uint32_t timebase = 0;
 
 uint8_t colorIndex = 0;
 
 void updateColor() {
-
     colorIndex++;
     switch (static_cast<ColorMode>(colorMode)) {
         case Single: {
@@ -196,7 +195,7 @@ __attribute__((unused)) void loop() {
 }
 
 void updateLeds() {
-    uint8_t beatBrightness = beatsin8(bpm, 0, 255, beatTicker.elapsed() * 1000);
+    uint8_t beatBrightness = beatsin8(bpm, 0, 255, timebase);
     bool beatUpdated = false;
     if (!updatedThisBeat) {
         updatedThisBeat = true;
@@ -205,12 +204,18 @@ void updateLeds() {
             intensity >= 2) {
             updateColor();
             beatUpdated = true;
+#ifdef DEBUG_WEBSOCKET
+            sendLedsToSocket();
+#endif
+#ifdef DEBUG
+            serialPrintLeds();
+#endif
         }
 
-        if (beatCounter % 4 == 0) {
-            sendLedsToSocket();
-            serialPrintLeds();
-        }
+//        if (beatCounter % 4 == 0) {
+//            sendLedsToSocket();
+//            serialPrintLeds();
+//        }
     }
     currentLedMode->updateLeds(leds, beatCounter, beatUpdated, beatBrightness);
 
@@ -219,7 +224,7 @@ void updateLeds() {
 
 void changeMode(LedMode newMode) {
 //    auto oldMode = static_cast<LedMode>(dataValues[0]);
-    dataValues[0] = newMode;
+    ledMode = newMode;
     DEBUG_PRINTLN(newMode);
     switch (newMode) {
         case LedMode::Rain: {
@@ -265,7 +270,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, __attribute__(
             char *ptr = strtok((char *) payload, ",");
 
             while (ptr != nullptr && index < AMT_DATA_VALUES) {
-                newDataValues[index++] = atoi(ptr);
+                newDataValues[index++] = atoi(ptr); // NOLINT(cert-err34-c)
                 ptr = strtok(nullptr, ",");
             }
 
@@ -273,7 +278,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, __attribute__(
             if (newMode != ledMode && newMode >= 0 && newMode < LedMode::AMOUNT_LEDMODE) {
                 changeMode(static_cast<LedMode>(newMode));
             }
-            dataValues[1] = newDataValues[1];
+            modeOption = newDataValues[1];
 
             uint8_t newBpm = newDataValues[2];
             if (newBpm != bpm && newBpm >= 60 && newBpm <= 180) {
@@ -281,32 +286,35 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, __attribute__(
             }
 
             //brightness
-            dataValues[3] = newDataValues[3];
-            FastLED.setBrightness(dataValues[3]);
+            brightness = newDataValues[3];
+            FastLED.setBrightness(brightness);
 
             //intensity
-            dataValues[4] = newDataValues[4];
+            intensity = newDataValues[4];
 
             //h1
-            dataValues[5] = newDataValues[5];
+            hue1 = newDataValues[5];
             //h2
-            dataValues[6] = newDataValues[6];
+            hue2 = newDataValues[6];
             //colorMode
-            dataValues[7] = newDataValues[7];
+            colorMode = static_cast<ColorMode>(newDataValues[7]);
 
             uint8_t newPaletteIndex = newDataValues[8];
-            if (newPaletteIndex != dataValues[8]) {
-
+            if (newPaletteIndex != paletteIndex) {
+                changePalette(newPaletteIndex);
             }
 
+            memcpy(oldDataValues, newDataValues, AMT_DATA_VALUES);
+#ifdef DEBUG
             serialPrintResult();
+#endif
             break;
         }
         case WStype_CONNECTED : {
             DEBUG_PRINTLN("client connected");
-            char message[sizeof(dataValues) * 4];
+            char message[AMT_DATA_VALUES * 4];
             uint8_t message_length = 0;
-            for (unsigned char dataValue : dataValues) {
+            for (unsigned char dataValue : oldDataValues) {
                 sprintf(message + message_length, "%03d,", dataValue);
                 message_length += 4;
             }
@@ -319,7 +327,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, __attribute__(
 }
 
 void setupLeds() {
-    FastLED.addLeds<WS2815, D4, RGB>(leds, NUM_LEDS);
+    FastLED.addLeds<WS2815, D4, RGB>(leds, NUM_LEDS); // NOLINT(readability-static-accessed-through-instance)
     FastLED.setBrightness(brightness);
 }
 
@@ -337,7 +345,7 @@ void setupServer() {
         delay(500);
     }
     DEBUG_PRINTLN("connected");
-    digitalWrite(LED_BUILTIN, HIGH);
+    digitalWrite(LED_BUILTIN, LOW);
     DEBUG_PRINTLN(WiFi.localIP());
 
 
@@ -345,6 +353,7 @@ void setupServer() {
     webSocket.onEvent(webSocketEvent);
 }
 
+#ifdef DEBUG
 void serialPrintLeds() {
     for (auto &led : leds) {
         uint8_t v = rgb2hsv_approximate(led).v;
@@ -358,6 +367,7 @@ void serialPrintLeds() {
     }
     DEBUG_PRINTLN();
 }
+#endif
 
 
 void buildLedString(char *out) {
@@ -368,16 +378,45 @@ void buildLedString(char *out) {
     }
 }
 
+#ifdef DEBUG_WEBSOCKET
 void sendLedsToSocket() {
     char s[(NUM_LEDS * 7) + 1];
     buildLedString(s);
     webSocket.broadcastTXT(s);
 }
+#endif
 
 
-void setBpm(int16_t newBpm) {
-    dataValues[2] = static_cast<int16_t>(newBpm);
+void setBpm(uint8_t newBpm) {
+    bpm = newBpm;
     beatTicker.interval(15000 / newBpm);
+    timebase = beatTicker.elapsed();
+    colorIndex = 0;
+}
+
+void changePalette(uint8_t newPaletteIndex) {
+    paletteIndex = newPaletteIndex;
+    switch (paletteIndex) {
+        case 0: {
+            currentPalette = Sunset_Real_gp;
+            break;
+        }
+        case 1: {
+            currentPalette = bhw1_sunconure_gp;
+            break;
+        }
+        case 2:
+            currentPalette = bhw1_purplered_gp;
+            break;
+        case 3:
+            currentPalette = bhw1_28_gp;
+            break;
+        case 4:
+            currentPalette = blues_gp;
+            break;
+        default:
+            break;
+    }
 }
 
 __attribute__((unused)) void setupOTA() {
@@ -403,7 +442,7 @@ __attribute__((unused)) void setupOTA() {
     ArduinoOTA.begin();
     DEBUG_PRINTLN("OTA ready\r\n");
 }
-
+#ifdef DEBUG
 void serialPrintResult() {
     if (!Serial) {
         return;
@@ -427,3 +466,4 @@ void serialPrintResult() {
     DEBUG_PRINTLN(colorMode);
 
 }
+#endif

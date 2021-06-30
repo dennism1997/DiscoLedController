@@ -14,7 +14,7 @@ public:
     void
     updateLeds(CRGB *leds, uint8_t beatCounter, bool beatUpdated, uint8_t beatBrightness) override {
         int numToFill = static_cast<int>(amountLeds);
-        int16_t mod = modeOption;
+        uint16_t mod = modeOption;
         if (mod <= 4) {
             if (counter == 0) {
                 fill_solid(leds, numToFill, CHSV(usedHue, 255, 255));
