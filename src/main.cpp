@@ -89,7 +89,7 @@ WebSocketsServer webSocket = WebSocketsServer(80);
 
 uint8_t oldDataValues[AMT_DATA_VALUES];
 
-LedMode ledMode = LedMode::Strobe;
+LedMode ledMode = LedMode::Rain;
 uint8_t modeOption = 0;
 uint8_t bpm = 120;
 uint8_t brightness = 20;
@@ -396,6 +396,7 @@ void setBpm(uint8_t newBpm) {
 }
 
 void changePalette(uint8_t newPaletteIndex) {
+    colorIndex = 0;
     paletteIndex = newPaletteIndex;
     switch (paletteIndex) {
         case 0: {
