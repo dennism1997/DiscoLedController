@@ -47,6 +47,33 @@ public:
             case 9:
                 value = static_cast<uint8_t>(round(acos(beatBrightness) / 1.5708));
                 break;
+            case 10:
+                value = beatsin8(bpm / 32, 64);
+                break;
+            case 11:
+                value = beatsin8(bpm / 16, 64);
+                break;
+            case 12:
+                value = beatsin8(bpm / 8, 64);
+                break;
+            case 13:
+                value = beat8(bpm / 32);
+                break;
+            case 14:
+                value = beat8(bpm / 16);
+                break;
+            case 15:
+                value = beat8(bpm / 8);
+                break;
+            case 16:
+                value = 255 - beat8(bpm / 32);
+                break;
+            case 17:
+                value = 255 - beat8(bpm / 16);
+                break;
+            case 18:
+                value = 255 - beat8(bpm/8);
+                break;
             default:
                 break;
         }

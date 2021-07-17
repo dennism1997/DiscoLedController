@@ -7,14 +7,14 @@
 
 
 enum LedMode {
-    Rain, Strobe, Cylon, Sparkle, Flash, Wave, AMOUNT_LEDMODE
+    Rain, Strobe, Cylon, Sparkle, Flash, Wave, Constant, AMOUNT_LEDMODE
 };
 
 enum ColorMode {
     Single, Complement, RainbowFade, RainbowSplash, Duo, Palette, Close, AMOUNT_COLORMODE
 };
-#define AMT_DATA_VALUES 9
-// mode, modeOption, bpm, brightness, intensity, colorH1, colorH2, colorMode, paletteIndex
+#define AMT_DATA_VALUES 10
+// mode, modeOption, bpm, brightness, intensity, colorH1, colorH2, colorMode, paletteIndex, sendLedsSocket
 extern LedMode ledMode;
 
 extern uint8_t modeOption;
@@ -25,6 +25,7 @@ extern uint8_t hue1;
 extern uint8_t hue2;
 extern ColorMode colorMode;
 extern uint8_t paletteIndex;
+extern bool sendLedsSocket;
 
 extern uint8_t usedHue;
 

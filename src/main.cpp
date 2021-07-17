@@ -32,6 +32,7 @@
 #include "SparkleMode.h"
 #include "FlashMode.h"
 #include "WaveMode.h"
+#include <ConstantMode.h>
 #include "ColorPalettes.h"
 
 #define NUM_LEDS 36
@@ -43,6 +44,7 @@ CylonMode cylonMode(NUM_LEDS);
 SparkleMode sparkleMode(NUM_LEDS);
 FlashMode flashMode(NUM_LEDS);
 WaveMode waveMode(NUM_LEDS);
+ConstantMode constantMode(NUM_LEDS);
 
 LedModeController *currentLedMode;
 
@@ -81,25 +83,28 @@ void updateLeds();
 
 void changePalette(uint8_t newPaletteIndex);
 
+void setupOTA();
+
 IPAddress ip(192, 168, 178, 200);
 IPAddress gateway(192, 168, 178, 1);
 IPAddress subnet(255, 255, 255, 0);
 WebSocketsServer webSocket = WebSocketsServer(80);
+
 //</editor-fold>
 
 uint8_t oldDataValues[AMT_DATA_VALUES];
 
-LedMode ledMode = LedMode::Rain;
-uint8_t modeOption = 0;
-uint8_t bpm = 120;
-uint8_t brightness = 20;
+LedMode ledMode = LedMode::Wave;
+uint8_t modeOption = 11;
+uint8_t bpm = 123;
+uint8_t brightness = 60;
 uint8_t intensity = 0;
 uint8_t hue1 = 0;
 uint8_t hue2 = 128;
-ColorMode colorMode = ColorMode::Single;
+ColorMode colorMode = ColorMode::Palette;
 uint8_t paletteIndex = 0;
 uint8_t usedHue = hue1;
-
+bool sendLedsSocket = true;
 
 //timing
 uint8_t beatCounter = 0;
@@ -179,7 +184,7 @@ __attribute__((unused)) void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
 
     setupServer();
-//    setupOTA();
+    setupOTA();
 
     changeMode(static_cast<LedMode>(ledMode));
     setBpm(bpm);
@@ -188,7 +193,7 @@ __attribute__((unused)) void setup() {
 
 
 __attribute__((unused)) void loop() {
-//    ArduinoOTA.handle();
+    ArduinoOTA.handle();
     webSocket.loop();
     beatTicker.update();
     updateLeds();
@@ -251,6 +256,10 @@ void changeMode(LedMode newMode) {
             currentLedMode = &waveMode;
             break;
         }
+        case LedMode::Constant: {
+            currentLedMode = &constantMode;
+            break;
+        }
         default:
             DEBUG_PRINT("change into unkown mode option: ");
             DEBUG_PRINTLN(newMode);
@@ -302,6 +311,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, __attribute__(
             uint8_t newPaletteIndex = newDataValues[8];
             if (newPaletteIndex != paletteIndex) {
                 changePalette(newPaletteIndex);
+            }
+
+            if (newDataValues[9] > 0) {
+                sendLedsSocket = true;
+            } else {
+                sendLedsSocket = false;
             }
 
             memcpy(oldDataValues, newDataValues, AMT_DATA_VALUES);
@@ -380,9 +395,11 @@ void buildLedString(char *out) {
 
 #ifdef DEBUG_WEBSOCKET
 void sendLedsToSocket() {
-    char s[(NUM_LEDS * 7) + 1];
-    buildLedString(s);
-    webSocket.broadcastTXT(s);
+    if (sendLedsSocket) {
+        char s[(NUM_LEDS * 7) + 1];
+        buildLedString(s);
+        webSocket.broadcastTXT(s);
+    }
 }
 #endif
 
@@ -421,9 +438,10 @@ void changePalette(uint8_t newPaletteIndex) {
     }
 }
 
-__attribute__((unused)) void setupOTA() {
-    ArduinoOTA.setHostname("discoled");
-    ArduinoOTA.setPassword("123");
+void setupOTA() {
+    ArduinoOTA.setHostname("wemosDiscoled");
+    ArduinoOTA.setPassword((const char *)"fissakom");
+    ArduinoOTA.setPort(8266);
     ArduinoOTA.onStart([]() {
         DEBUG_PRINTLN("Start OTA");
     });
@@ -441,7 +459,7 @@ __attribute__((unused)) void setupOTA() {
         else if (error == OTA_RECEIVE_ERROR) DEBUG_PRINTLN("Receive Failed");
         else if (error == OTA_END_ERROR) DEBUG_PRINTLN("End Failed");
     });
-    ArduinoOTA.begin();
+    ArduinoOTA.begin(false);
     DEBUG_PRINTLN("OTA ready\r\n");
 }
 #ifdef DEBUG

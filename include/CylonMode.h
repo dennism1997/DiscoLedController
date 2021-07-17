@@ -27,7 +27,7 @@ public:
         if (beatUpdated){
             for (size_t i = 0; i < amountLeds; i++) {
                 if (i == position || i == position + eyeSize - 1) {
-                    leds[i].setHSV(usedHue, 255, 128);
+                    leds[i].setHSV(usedHue, 255, 80);
                 } else if (i > position && i < position + eyeSize - 1) {
                     leds[i].setHSV(usedHue, 255, 255);
                 } else {
@@ -35,7 +35,6 @@ public:
                 }
 
             }
-//            memmove(leds + position * 3, (leds + direction * 3) + position * 3, eyeSize * 3);
             if (direction > 0) {
                 leds[position].setHSV(usedHue, 255, 0);
             } else {
