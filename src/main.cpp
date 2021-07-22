@@ -1,7 +1,9 @@
 #include <Arduino.h>
 
-#define DEBUG 1
+//#define DEBUG 1
 #define DEBUG_WEBSOCKET 1
+
+#define ARDUINO_OTA_ENABLED 1
 
 #ifdef DEBUG
 #define DEBUG_PRINT(x)     Serial.print (x)
@@ -69,6 +71,7 @@ void serialPrintLeds();
 
 void serialPrintResult();
 #endif
+
 void setupLeds();
 
 void setupServer();
@@ -76,9 +79,13 @@ void setupServer();
 void changeMode(LedMode newMode);
 
 void setBpm(uint8_t bpm);
+
 #ifdef DEBUG_WEBSOCKET
+
 void sendLedsToSocket();
+
 #endif
+
 void updateLeds();
 
 void changePalette(uint8_t newPaletteIndex);
@@ -92,7 +99,7 @@ WebSocketsServer webSocket = WebSocketsServer(80);
 
 //</editor-fold>
 
-uint8_t oldDataValues[AMT_DATA_VALUES];
+
 
 LedMode ledMode = LedMode::Wave;
 uint8_t modeOption = 11;
@@ -106,12 +113,14 @@ uint8_t paletteIndex = 0;
 uint8_t usedHue = hue1;
 bool sendLedsSocket = true;
 
+uint8_t oldDataValues[AMT_DATA_VALUES] = {static_cast<uint8_t>(ledMode), modeOption, bpm, brightness, intensity, hue1, hue2, static_cast<uint8_t>(colorMode),
+                                          paletteIndex, 1};
+
 //timing
 uint8_t beatCounter = 0;
 boolean updatedThisBeat = false;
 #define TICKS_PER_BEAT 16
 Ticker beatTicker(tickBeatClock, 1000, 0, MICROS);
-uint32_t timebase = 0;
 
 uint8_t colorIndex = 0;
 
@@ -193,20 +202,23 @@ __attribute__((unused)) void setup() {
 
 
 __attribute__((unused)) void loop() {
+#ifdef ARDUINO_OTA_ENABLED
     ArduinoOTA.handle();
+#endif
     webSocket.loop();
     beatTicker.update();
     updateLeds();
 }
 
 void updateLeds() {
-    uint8_t beatBrightness = beatsin8(bpm, 0, 255, timebase);
+    uint8_t beatBrightness = beatsin8(bpm, 0, 255);
     bool beatUpdated = false;
     if (!updatedThisBeat) {
         updatedThisBeat = true;
-        if ((intensity == 0 && beatCounter % 4 == 0) ||
-            (intensity == 1 && beatCounter % 2 == 0) ||
-            intensity >= 2) {
+        if ((intensity == 0 && beatCounter % 8 == 0) ||
+            (intensity == 1 && beatCounter % 4 == 0) ||
+            (intensity == 2 && beatCounter % 2 == 0) ||
+            intensity >= 3) {
             updateColor();
             beatUpdated = true;
 #ifdef DEBUG_WEBSOCKET
@@ -266,7 +278,6 @@ void changeMode(LedMode newMode) {
             break;
     }
     currentLedMode->init(leds);
-
 }
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, __attribute__((unused)) size_t length) {
@@ -394,6 +405,7 @@ void buildLedString(char *out) {
 }
 
 #ifdef DEBUG_WEBSOCKET
+
 void sendLedsToSocket() {
     if (sendLedsSocket) {
         char s[(NUM_LEDS * 7) + 1];
@@ -401,14 +413,14 @@ void sendLedsToSocket() {
         webSocket.broadcastTXT(s);
     }
 }
+
 #endif
 
 
 void setBpm(uint8_t newBpm) {
     bpm = newBpm;
-    beatTicker.interval(15000 / newBpm);
+    beatTicker.interval(7500 / newBpm);
 //    timebase = beatTicker.elapsed();
-    timebase = millis();
     colorIndex = 0;
 }
 
@@ -439,8 +451,9 @@ void changePalette(uint8_t newPaletteIndex) {
 }
 
 void setupOTA() {
+#ifdef ARDUINO_OTA_ENABLED
     ArduinoOTA.setHostname("wemosDiscoled");
-    ArduinoOTA.setPassword((const char *)"fissakom");
+    ArduinoOTA.setPassword((const char *) "fissakom");
     ArduinoOTA.setPort(8266);
     ArduinoOTA.onStart([]() {
         DEBUG_PRINTLN("Start OTA");
@@ -461,7 +474,9 @@ void setupOTA() {
     });
     ArduinoOTA.begin(false);
     DEBUG_PRINTLN("OTA ready\r\n");
+#endif
 }
+
 #ifdef DEBUG
 void serialPrintResult() {
     if (!Serial) {
